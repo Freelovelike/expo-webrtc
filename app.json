@@ -1,27 +1,55 @@
 {
   "expo": {
-    "name": "expo-webrtc",
+    "name": "WebRTC 视频通话",
     "slug": "expo-webrtc",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "jsEngine": "hermes",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "此应用需要访问您的相机进行视频通话",
+        "NSMicrophoneUsageDescription": "此应用需要访问您的麦克风进行语音通话",
+        "NSPhotoLibraryUsageDescription": "此应用需要访问您的相册"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "package": "com.freelove.expowebrtc"
     },
+    "plugins": [
+      [
+        "expo-av",
+        {
+          "microphonePermission": "允许$(PRODUCT_NAME)访问您的麦克风"
+        }
+      ],
+      "expo-audio"
+    ],
     "web": {
       "favicon": "./assets/favicon.png"
     }
