@@ -9,17 +9,36 @@ class WebRTCHelper {
     // ICE服务器配置
     this.configuration = {
       iceServers: [
+        // {
+        //   urls: [
+        //     "stun:stun.l.google.com:19302",
+        //     "stun:stun1.l.google.com:19302",
+        //     "stun:stun2.l.google.com:19302",
+        //     "stun:stun3.l.google.com:19302",
+        //     "stun:stun4.l.google.com:19302"
+        //   ]
+        // },
+        // 添加TURN服务器配置
         {
-          urls: "stun:stun.l.google.com:19302"
+          urls: "turn:global.relay.metered.ca:80",
+          username: "b48f1b1a568960086738f57b",
+          credential: "qZXl4gi5lrxlhwwV",
         },
         {
-          urls: "stun:stun1.l.google.com:19302"
+          urls: "turn:global.relay.metered.ca:443",
+          username: "b48f1b1a568960086738f57b",
+          credential: "qZXl4gi5lrxlhwwV",
         },
         {
-          urls: "stun:stun2.l.google.com:19302"
+          urls: "turns:global.relay.metered.ca:443?transport=tcp",
+          username: "b48f1b1a568960086738f57b",
+          credential: "qZXl4gi5lrxlhwwV",
         }
       ],
       iceCandidatePoolSize: 10,
+      iceTransportPolicy: 'all', // 允许所有传输策略
+      bundlePolicy: 'max-bundle', // 使用最大捆绑策略
+      rtcpMuxPolicy: 'require', // 要求RTCP多路复用
       ...config, // 合并传入的配置
     };
 
@@ -27,6 +46,8 @@ class WebRTCHelper {
     this.isInitiator = false; // 默认不是发起者
     this.onNegotiationNeeded = null; // 协商回调函数
     this.isNegotiating = false;
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 3;
   }
 
 
@@ -67,11 +88,31 @@ class WebRTCHelper {
         }
       };
 
-      // 监听连接状态变化
+      // 监听连接状态变化并添加重连逻辑
       this.peerConnection.oniceconnectionstatechange = () => {
+        if (!this.peerConnection) return; // 添加空检查
+        
         const state = this.peerConnection.iceConnectionState;
         console.log("ICE连接状态变化:", state);
-        onConnectionStateChange(state);
+        
+        if (state === 'disconnected' || state === 'failed') {
+          if (this.reconnectAttempts < this.maxReconnectAttempts) {
+            console.log(`尝试重新连接 (${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
+            this.reconnectAttempts++;
+            
+            // 重新协商连接
+            if (this.isInitiator && !this.isNegotiating) {
+              this.handleNegotiationNeeded();
+            }
+          } else {
+            console.log("达到最大重连次数，停止重连");
+            this.reconnectAttempts = 0;
+          }
+        } else if (state === 'connected' || state === 'completed') {
+          this.reconnectAttempts = 0;
+        }
+        
+        onConnectionStateChange && onConnectionStateChange(state);
       };
 
       // 监听数据通道
@@ -81,16 +122,19 @@ class WebRTCHelper {
 
       // 监听信令状态变化
       this.peerConnection.onsignalingstatechange = () => {
+        if (!this.peerConnection) return; // 添加空检查
         console.log("信令状态变化:", this.peerConnection.signalingState);
       };
 
       // 监听ICE连接状态变化
       this.peerConnection.onicegatheringstatechange = () => {
+        if (!this.peerConnection) return; // 添加空检查
         console.log("ICE收集状态变化:", this.peerConnection.iceGatheringState);
       };
 
       // 监听连接状态变化
       this.peerConnection.onconnectionstatechange = () => {
+        if (!this.peerConnection) return; // 添加空检查
         console.log("连接状态变化:", this.peerConnection.connectionState);
       };
 
@@ -338,11 +382,69 @@ class WebRTCHelper {
     });
   }
 
+  // 创建并发送应答
+  async sendAnswer(socket, targetUserId) {
+    try {
+      console.log('创建应答...');
+      const answer = await this.createAnswer();
+      if (!answer) {
+        console.error('创建应答失败');
+        return false;
+      }
+      
+      console.log('发送应答到发起方');
+      socket.emit('rtc-answer', {
+        callerId: targetUserId,
+        answer
+      });
+      return true;
+    } catch (error) {
+      console.error('发送应答失败:', error);
+      return false;
+    }
+  }
+
   // 关闭连接
   close() {
     if (this.peerConnection) {
-      this.peerConnection.close();
-      this.peerConnection = null;
+      try {
+        // 移除所有轨道
+        const senders = this.peerConnection.getSenders();
+        senders.forEach(sender => {
+          try {
+            this.peerConnection.removeTrack(sender);
+          } catch (e) {
+            console.warn('移除轨道失败:', e);
+          }
+        });
+
+        // 关闭连接前记录最后的状态
+        const lastIceState = this.peerConnection.iceConnectionState;
+        const lastConnState = this.peerConnection.connectionState;
+        
+        // 关闭连接
+        this.peerConnection.close();
+        
+        // 手动触发最后的状态变化事件
+        console.log("连接已关闭");
+        console.log("最后的ICE连接状态:", lastIceState);
+        console.log("最后的连接状态:", lastConnState);
+        
+        // 清理所有事件监听器
+        this.peerConnection.oniceconnectionstatechange = null;
+        this.peerConnection.onsignalingstatechange = null;
+        this.peerConnection.onicegatheringstatechange = null;
+        this.peerConnection.onconnectionstatechange = null;
+        this.peerConnection.onicecandidate = null;
+        this.peerConnection.ontrack = null;
+        this.peerConnection.ondatachannel = null;
+        this.peerConnection.onnegotiationneeded = null;
+        
+        // 最后才设置为null
+        this.peerConnection = null;
+      } catch (error) {
+        console.error("关闭WebRTC连接时出错:", error);
+      }
     }
   }
 
