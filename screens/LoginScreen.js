@@ -30,6 +30,7 @@ const LoginScreen = ({ socket, setUser }) => {
       // 发送登录请求
       const response = await axios.post(`${API_URL}/auth/login`, { username });
       
+      console.log(response.data);
       if (response.data.success) {
         const userData = response.data.data;
         

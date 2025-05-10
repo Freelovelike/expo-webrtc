@@ -22,7 +22,8 @@
         "NSCameraUsageDescription": "此应用需要访问您的相机进行视频通话",
         "NSMicrophoneUsageDescription": "此应用需要访问您的麦克风进行语音通话",
         "NSPhotoLibraryUsageDescription": "此应用需要访问您的相册"
-      }
+      },
+      "bundleIdentifier": "com.freelove.expowebrtc"
     },
     "android": {
       "adaptiveIcon": {
@@ -30,10 +31,6 @@
         "backgroundColor": "#ffffff"
       },
       "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.ACCESS_NETWORK_STATE",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.ACCESS_NETWORK_STATE",
