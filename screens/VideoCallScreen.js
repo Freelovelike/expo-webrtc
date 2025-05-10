@@ -26,11 +26,12 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
-  const [isSpeaker, setIsSpeaker] = useState(true);
+  const [isSpeaker, setIsSpeaker] = useState(false);
   const [isFrontCamera, setIsFrontCamera] = useState(true);
   const [isVideoEnabled, setIsVideoEnabled] = useState(mode === 'video');
   const [callStatus, setCallStatus] = useState(isHost ? 'calling' : 'receiving');
   const [callTimer, setCallTimer] = useState(0);
+  const [isEarpiece, setIsEarpiece] = useState(false);
   
   // 本地视图位置
   const [localViewPosition, setLocalViewPosition] = useState({ x: 20, y: 50 });
@@ -520,9 +521,9 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
         interruptionModeIOS: 1, // DoNotMix模式值为1
         interruptionModeAndroid: 1, // DoNotMix模式值为1 
         shouldDuckAndroid: false,
-        playThroughEarpieceAndroid: isSpeaker,
+        playThroughEarpieceAndroid: isEarpiece,
       });
-      setIsSpeaker(!isSpeaker);
+      setIsEarpiece(!isEarpiece);
     } catch (error) {
       console.error('切换扬声器失败:', error);
     }
@@ -664,10 +665,10 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
       </TouchableOpacity>
       
       <TouchableOpacity
-        style={[styles.controlButton, isSpeaker ? styles.activeButton : styles.speakerButton]}
+        style={[styles.controlButton, isEarpiece ? styles.activeButton : styles.speakerButton]}
         onPress={toggleSpeaker}
       >
-        <Text style={styles.controlText}>{isSpeaker ? '听筒' : '扬声器'}</Text>
+        <Text style={styles.controlText}>{isEarpiece ? '扬声器' : '听筒'}</Text>
       </TouchableOpacity>
     </View>
   );
