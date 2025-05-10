@@ -7,7 +7,8 @@ import {
   Dimensions,
   Alert,
   Platform,
-  SafeAreaView
+  SafeAreaView,
+  PanResponder
 } from 'react-native';
 import {
   RTCView,
@@ -31,6 +32,9 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
   const [callStatus, setCallStatus] = useState(isHost ? 'calling' : 'receiving');
   const [callTimer, setCallTimer] = useState(0);
   
+  // 本地视图位置
+  const [localViewPosition, setLocalViewPosition] = useState({ x: 20, y: 50 });
+  
   // WebRTC 帮助类实例
   const webrtcHelperRef = useRef(null);
   
@@ -41,17 +45,51 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
   const callSoundRef = useRef(null);
   const endCallSoundRef = useRef(null);
   
+  // 创建拖动响应器
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderMove: (evt, gestureState) => {
+        setLocalViewPosition({
+          x: Math.max(0, Math.min(width - 120, localViewPosition.x + gestureState.dx)),
+          y: Math.max(50, Math.min(height - 230, localViewPosition.y + gestureState.dy)),
+        });
+      },
+      onPanResponderRelease: () => {
+        // 拖动结束，不需要额外操作
+      },
+    })
+  ).current;
+  
   // 初始化
   useEffect(() => {
     // 创建 WebRTC 实例，传入配置
     const config = {
       iceServers: [
         {
-          urls: 'turn:freelike.cn:3478',
-          username: 'freelove',
-          credential: 'hwc20010106'
-        }
-      ],
+          urls: "stun:stun.relay.metered.ca:80",
+        },
+        {
+          urls: "turn:global.relay.metered.ca:80",
+          username: "b48f1b1a568960086738f57b",
+          credential: "qZXl4gi5lrxlhwwV",
+        },
+        {
+          urls: "turn:global.relay.metered.ca:80?transport=tcp",
+          username: "b48f1b1a568960086738f57b",
+          credential: "qZXl4gi5lrxlhwwV",
+        },
+        {
+          urls: "turn:global.relay.metered.ca:443",
+          username: "b48f1b1a568960086738f57b",
+          credential: "qZXl4gi5lrxlhwwV",
+        },
+        {
+          urls: "turns:global.relay.metered.ca:443?transport=tcp",
+          username: "b48f1b1a568960086738f57b",
+          credential: "qZXl4gi5lrxlhwwV",
+        },
+    ],
       iceCandidatePoolSize: 10
     };
     webrtcHelperRef.current = new WebRTCHelper(config);
@@ -112,10 +150,17 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
       };
       
       const stream = await mediaDevices.getUserMedia(constraints);
+      console.log('获取到本地媒体流，音轨数:', stream.getAudioTracks().length, 
+                  '视轨数:', stream.getVideoTracks().length);
+      
       setLocalStream(stream);
       
       // 初始化WebRTC连接
-      setupWebRTC(stream);
+      const success = setupWebRTC(stream);
+      
+      if (!success) {
+        throw new Error('WebRTC连接设置失败');
+      }
       
       // 如果是主持人，创建提议
       if (isHost) {
@@ -123,18 +168,31 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
       } else {
         setCallStatus('receiving');
       }
+      
+      return true;
     } catch (error) {
       console.error('获取媒体流失败:', error);
       Alert.alert('错误', '无法访问摄像头或麦克风，请检查权限设置');
       navigation.goBack();
+      return false;
     }
   };
 
   // 设置WebRTC连接
   const setupWebRTC = (stream) => {
+    if (!stream) {
+      console.error('无法设置WebRTC连接: 媒体流不可用');
+      return false;
+    }
+    
     const webrtcHelper = webrtcHelperRef.current;
     
     try {
+      // 确保先关闭任何现有连接
+      if (webrtcHelper.peerConnection) {
+        webrtcHelper.close();
+      }
+      
       const success = webrtcHelper.initPeerConnection(
         // ICE候选处理
         (candidate) => {
@@ -145,6 +203,7 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
         },
         // 远程流处理
         (remoteMediaStream) => {
+          console.log('收到远程媒体流');
           setRemoteStream(remoteMediaStream);
           
           // 停止呼叫音效，开始计时
@@ -161,6 +220,14 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
           } else if (state === 'connected') {
             setCallStatus('connected');
           }
+        },
+        // 协商需求处理
+        (offer) => {
+          console.log('需要重新协商，发送新的offer');
+          socket.emit('rtc-offer', {
+            targetUserId: targetUser.id,
+            offer
+          });
         }
       );
 
@@ -168,12 +235,19 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
         throw new Error('初始化对等连接失败');
       }
       
+      // 设置发起者角色
+      webrtcHelper.setInitiator(isHost);
+      
       // 添加本地流到连接
       webrtcHelper.addLocalStream(stream);
+      
+      return true;
     } catch (error) {
       console.error('设置WebRTC连接失败:', error);
-      Alert.alert('错误', '无法建立WebRTC连接，请检查网络设置');
-      navigation.goBack();
+      if (error.message && error.message.includes('getAudioTracks')) {
+        console.log('错误与媒体轨道相关，可能是媒体流问题');
+      }
+      return false;
     }
   };
   
@@ -186,22 +260,59 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
           console.log('收到提议，准备创建应答');
           const webrtcHelper = webrtcHelperRef.current;
           
+          // 如果连接状态不对，先重置连接
+          if (webrtcHelper.peerConnection && webrtcHelper.peerConnection.signalingState !== 'stable') {
+            console.log('重置连接以接收新offer');
+            webrtcHelper.close();
+            
+            // 检查本地流是否可用
+            if (!localStream) {
+              console.log('本地流不可用，重新获取媒体流');
+              await setupMediaStream();
+              
+              // 重新发起处理offer流程
+              if (webrtcHelper.peerConnection) {
+                // 设置远程描述
+                const setDescResult = await webrtcHelper.setRemoteDescription(offer);
+                if (!setDescResult) {
+                  console.error('设置远程描述失败');
+                  return;
+                }
+                
+                // 创建应答并发送
+                await sendAnswer(webrtcHelper);
+              }
+              return;
+            }
+            
+            // 重新初始化连接
+            if (!setupWebRTC(localStream)) {
+              console.error('重新初始化连接失败');
+              return;
+            }
+            
+            // 给一点时间让连接初始化
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+          
+          // 确保连接已初始化
+          if (!webrtcHelper.peerConnection) {
+            console.error('PeerConnection未初始化，无法处理offer');
+            return;
+          }
+          
           // 设置远程描述
-          await webrtcHelper.setRemoteDescription(offer);
+          const setDescResult = await webrtcHelper.setRemoteDescription(offer);
+          if (!setDescResult) {
+            console.error('设置远程描述失败');
+            return;
+          }
           
           // 等待一小段时间，让ICE收集开始
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 1000));
           
-          // 创建应答
-          const answer = await webrtcHelper.createAnswer();
-          
-          // 发送应答
-          socket.emit('rtc-answer', {
-            targetUserId: targetUser.id,
-            answer
-          });
-          
-          console.log('应答已发送');
+          // 创建应答并发送
+          await sendAnswer(webrtcHelper);
         }
       } catch (error) {
         console.error('处理提议错误:', error);
@@ -226,7 +337,10 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
           // 添加信令状态检查，只在非stable状态时设置远程描述
           if (webrtcHelper.peerConnection && webrtcHelper.peerConnection.signalingState !== 'stable') {
             console.log('设置远程描述，当前信令状态:', webrtcHelper.peerConnection.signalingState);
-            await webrtcHelper.setRemoteDescription(answer);
+            const result = await webrtcHelper.setRemoteDescription(answer);
+            if (!result) {
+              console.error('设置远程描述失败');
+            }
           } else {
             console.log('忽略应答，当前信令状态已是stable');
           }
@@ -241,20 +355,54 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
       try {
         if (calleeId === targetUser.id && isHost) {
           console.log('对方接受了通话请求');
+          
+          // 停止呼叫音效
+          if (callSoundRef.current) {
+            callSoundRef.current.stopAsync();
+          }
+          
           // 创建并发送提议
           const webrtcHelper = webrtcHelperRef.current;
           
-          // 检查当前信令状态
-          if (webrtcHelper.peerConnection && webrtcHelper.peerConnection.signalingState === 'stable') {
-            const offer = await webrtcHelper.createOffer();
+          // 无论信令状态如何，都尝试发起新提议
+          webrtcHelper.setInitiator(true); // 确保设置为发起者
+          
+          // 先关闭可能存在的连接
+          if (webrtcHelper.peerConnection && webrtcHelper.peerConnection.signalingState !== 'stable') {
+            console.log('重置连接以创建新的offer');
+            webrtcHelper.close();
             
-            socket.emit('rtc-offer', {
-              targetUserId: targetUser.id,
-              offer
-            });
-          } else {
-            console.log('信令状态不是stable，跳过创建提议');
+            // 检查本地流是否可用
+            if (!localStream) {
+              console.log('本地流不可用，重新获取媒体流');
+              await setupMediaStream();
+              return; // 媒体流初始化会重新建立连接
+            }
+            
+            // 重新初始化连接
+            setupWebRTC(localStream);
+            
+            // 给一点时间让连接初始化
+            await new Promise(resolve => setTimeout(resolve, 1000));
           }
+          
+          // 再次检查连接是否有效
+          if (!webrtcHelper.peerConnection) {
+            console.error('PeerConnection未初始化，无法创建offer');
+            return;
+          }
+          
+          const offer = await webrtcHelper.createOffer();
+          if (!offer) {
+            console.error('创建提议失败');
+            return;
+          }
+          
+          console.log('发送offer到接受方');
+          socket.emit('rtc-offer', {
+            targetUserId: targetUser.id,
+            offer
+          });
         }
       } catch (error) {
         console.error('处理接受呼叫错误:', error);
@@ -265,7 +413,14 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
     socket.on('rtc-candidate', ({ userId, candidate }) => {
       if (userId === targetUser.id) {
         const webrtcHelper = webrtcHelperRef.current;
-        webrtcHelper.addIceCandidate(candidate);
+        if (webrtcHelper && webrtcHelper.peerConnection) {
+          webrtcHelper.addIceCandidate(candidate).catch(error => {
+            console.warn('添加ICE候选失败:', error);
+            // 这里可以选择稍后重试或其他策略
+          });
+        } else {
+          console.warn('尝试添加ICE候选时WebRTC连接未初始化');
+        }
       }
     });
     
@@ -315,6 +470,7 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
       socket.off('rtc-reject');
       socket.off('rtc-error');
       socket.off('rtc-accept');
+      socket.off('rtc-call-request');
     };
   };
   
@@ -409,6 +565,17 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
   
   // 清理资源
   const cleanUp = () => {
+    // 移除socket监听器
+    socket.off('rtc-offer');
+    socket.off('rtc-answer');
+    socket.off('rtc-candidate');
+    socket.off('rtc-handup');
+    socket.off('rtc-cancel');
+    socket.off('rtc-reject');
+    socket.off('rtc-error');
+    socket.off('rtc-accept');
+    socket.off('rtc-call-request');
+    
     // 停止音频
     if (callSoundRef.current) {
       callSoundRef.current.stopAsync();
@@ -511,6 +678,30 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
     }
   };
   
+  // 辅助函数：创建并发送应答
+  const sendAnswer = async (webrtcHelper) => {
+    try {
+      // 创建应答
+      const answer = await webrtcHelper.createAnswer();
+      if (!answer) {
+        console.error('创建应答失败');
+        return false;
+      }
+      
+      // 发送应答
+      socket.emit('rtc-answer', {
+        targetUserId: targetUser.id,
+        answer
+      });
+      
+      console.log('应答已发送');
+      return true;
+    } catch (error) {
+      console.error('创建或发送应答失败:', error);
+      return false;
+    }
+  };
+  
   return (
     <SafeAreaView style={styles.container}>
       {mode === 'video' && remoteStream ? (
@@ -518,6 +709,7 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
           streamURL={remoteStream.toURL()}
           style={styles.remoteStream}
           objectFit="cover"
+          zOrder={0}
         />
       ) : (
         <View style={styles.noVideoContainer}>
@@ -526,11 +718,21 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
       )}
       
       {mode === 'video' && localStream && (
-        <RTCView
-          streamURL={localStream.toURL()}
-          style={styles.localStream}
-          objectFit="cover"
-        />
+        <View
+          style={[
+            styles.localStreamContainer,
+            { top: localViewPosition.y, left: localViewPosition.x }
+          ]}
+          {...panResponder.panHandlers}
+        >
+          <RTCView
+            streamURL={localStream.toURL()}
+            style={styles.localStream}
+            objectFit="cover"
+            zOrder={1}
+            mirror={isFrontCamera}
+          />
+        </View>
       )}
       
       <View style={styles.statusContainer}>
@@ -552,15 +754,21 @@ const styles = StyleSheet.create({
     width: width,
     height: height,
   },
-  localStream: {
+  localStreamContainer: {
     position: 'absolute',
-    top: 50,
-    right: 20,
-    width: 100,
-    height: 150,
-    backgroundColor: '#444',
+    width: 120,
+    height: 180,
+    backgroundColor: 'transparent',
     borderRadius: 10,
     overflow: 'hidden',
+  },
+  localStream: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   noVideoContainer: {
     flex: 1,
