@@ -566,6 +566,8 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
   
   // 清理资源
   const cleanUp = () => {
+    console.log('开始清理资源');
+    
     // 移除socket监听器
     socket.off('rtc-offer');
     socket.off('rtc-answer');
@@ -593,13 +595,23 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
     
     // 关闭WebRTC连接
     if (webrtcHelperRef.current) {
-      webrtcHelperRef.current.close();
+      try {
+        webrtcHelperRef.current.close();
+      } catch (error) {
+        console.error('关闭WebRTC连接时出错:', error);
+      }
     }
     
     // 关闭本地流
     if (localStream) {
-      localStream.getTracks().forEach((track) => track.stop());
+      try {
+        localStream.getTracks().forEach((track) => track.stop());
+      } catch (error) {
+        console.error('关闭媒体轨道时出错:', error);
+      }
     }
+    
+    console.log('资源清理完成');
   };
   
   // 格式化时间
