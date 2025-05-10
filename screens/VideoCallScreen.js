@@ -512,12 +512,13 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
   // 切换扬声器
   const toggleSpeaker = async () => {
     try {
+      console.log('切换扬声器', Audio);
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
         staysActiveInBackground: true,
-        interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
-        interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
+        interruptionModeIOS: 1, // DoNotMix模式值为1
+        interruptionModeAndroid: 1, // DoNotMix模式值为1 
         shouldDuckAndroid: false,
         playThroughEarpieceAndroid: isSpeaker,
       });
