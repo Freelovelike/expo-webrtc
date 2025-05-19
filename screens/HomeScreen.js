@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import axios from 'axios';
 
-const API_URL = 'http://freelike.cn/api';
+const API_URL = 'http://192.168.1.116:5000/api';
 
 const HomeScreen = ({ navigation, socket, user }) => {
   const [users, setUsers] = useState([]);

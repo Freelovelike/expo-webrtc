@@ -19,23 +19,36 @@ class WebRTCHelper {
         //   ]
         // },
         // 添加TURN服务器配置
+        // {
+        //   urls: "turn:119.29.188.102:3478?transport=udp",
+        //   username: "wladmin",
+        //   credential: "wladminpass"
+        // }
+        // {
+        //   urls: "turn:global.relay.metered.ca:80",
+        //   username: "b48f1b1a568960086738f57b",
+        //   credential: "qZXl4gi5lrxlhwwV",
+        // },
+        // {
+        //   urls: "turn:global.relay.metered.ca:443",
+        //   username: "b48f1b1a568960086738f57b",
+        //   credential: "qZXl4gi5lrxlhwwV",
+        // },
+        // {
+        //   urls: "turns:global.relay.metered.ca:443?transport=tcp",
+        //   username: "b48f1b1a568960086738f57b",
+        //   credential: "qZXl4gi5lrxlhwwV",
+        // }
         {
-          urls: "turn:global.relay.metered.ca:80",
-          username: "b48f1b1a568960086738f57b",
-          credential: "qZXl4gi5lrxlhwwV",
+          urls: [
+            "turn:114.132.223.74:3478?transport=udp",
+            "turn:114.132.223.74:3478?transport=tcp",
+          ],
+          username: "wladmin",
+          credential: "wladminpass"
         },
-        {
-          urls: "turn:global.relay.metered.ca:443",
-          username: "b48f1b1a568960086738f57b",
-          credential: "qZXl4gi5lrxlhwwV",
-        },
-        {
-          urls: "turns:global.relay.metered.ca:443?transport=tcp",
-          username: "b48f1b1a568960086738f57b",
-          credential: "qZXl4gi5lrxlhwwV",
-        }
       ],
-      iceCandidatePoolSize: 10,
+      // iceCandidatePoolSize: 10,
       iceTransportPolicy: 'all', // 允许所有传输策略
       bundlePolicy: 'max-bundle', // 使用最大捆绑策略
       rtcpMuxPolicy: 'require', // 要求RTCP多路复用

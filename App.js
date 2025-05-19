@@ -18,7 +18,7 @@ import VideoCallScreen from './screens/VideoCallScreen';
 const Stack = createStackNavigator();
 
 // 创建socket实例
-const socket = io('http://freelike.cn');
+const socket = io('http://192.168.1.116:5000');
 
 export default function App() {
   const [user, setUser] = useState(null);

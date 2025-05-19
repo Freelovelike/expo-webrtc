@@ -67,31 +67,39 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
     // 创建 WebRTC 实例，传入配置
     const config = {
       iceServers: [
+        // {
+        //   urls: "stun:stun.relay.metered.ca:80",
+        // },
+        // {
+        //   urls: "turn:global.relay.metered.ca:80",
+        //   username: "b48f1b1a568960086738f57b",
+        //   credential: "qZXl4gi5lrxlhwwV",
+        // },
+        // {
+        //   urls: "turn:global.relay.metered.ca:80?transport=tcp",
+        //   username: "b48f1b1a568960086738f57b",
+        //   credential: "qZXl4gi5lrxlhwwV",
+        // },
+        // {
+        //   urls: "turn:global.relay.metered.ca:443",
+        //   username: "b48f1b1a568960086738f57b",
+        //   credential: "qZXl4gi5lrxlhwwV",
+        // },
+        // {
+        //   urls: "turns:global.relay.metered.ca:443?transport=tcp",
+        //   username: "b48f1b1a568960086738f57b",
+        //   credential: "qZXl4gi5lrxlhwwV",
+        // },
         {
-          urls: "stun:stun.relay.metered.ca:80",
-        },
-        {
-          urls: "turn:global.relay.metered.ca:80",
-          username: "b48f1b1a568960086738f57b",
-          credential: "qZXl4gi5lrxlhwwV",
-        },
-        {
-          urls: "turn:global.relay.metered.ca:80?transport=tcp",
-          username: "b48f1b1a568960086738f57b",
-          credential: "qZXl4gi5lrxlhwwV",
-        },
-        {
-          urls: "turn:global.relay.metered.ca:443",
-          username: "b48f1b1a568960086738f57b",
-          credential: "qZXl4gi5lrxlhwwV",
-        },
-        {
-          urls: "turns:global.relay.metered.ca:443?transport=tcp",
-          username: "b48f1b1a568960086738f57b",
-          credential: "qZXl4gi5lrxlhwwV",
+          urls: [
+            "turn:114.132.223.74:3478?transport=udp",
+            "turn:114.132.223.74:3478?transport=tcp",
+          ],
+          username: "wladmin",
+          credential: "wladminpass"
         },
     ],
-      iceCandidatePoolSize: 10
+      // iceCandidatePoolSize: 10
     };
     webrtcHelperRef.current = new WebRTCHelper(config);
     
@@ -118,13 +126,13 @@ const VideoCallScreen = ({ route, navigation, socket, user }) => {
     try {
       // 呼叫音频
       const { sound: callSound } = await Audio.Sound.createAsync(
-        require('../assets/call.mp3')  // 请确保在 assets 目录下有这个文件
+        require('./call.mp3')  // 请确保在 assets 目录下有这个文件
       );
       callSoundRef.current = callSound;
       
       // 结束通话音频
       const { sound: endCallSound } = await Audio.Sound.createAsync(
-        require('../assets/hangup.mp3')  // 请确保在 assets 目录下有这个文件
+        require('./handup.mp3')  // 请确保在 assets 目录下有这个文件
       );
       endCallSoundRef.current = endCallSound;
       
